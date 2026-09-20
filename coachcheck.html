@@ -1,0 +1,696 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>CoachCheck – self-check kiosk prototype</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700;800&family=Hind:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#EDEFF2; --panel:#FFFFFF; --ink:#12263F; --muted:#56677D; --line:#D3D9E1;
+  --accent:#F2B705; --ok:#1E8E4E; --bad:#C62F2F; --warn:#B7791F;
+  --cell-bg:#E3E8EF; --cell-ink:#3B4E66; --cell-taken:#C9D6E6; --cell-line:#C4CDD9;
+  --k-bg:#0E2440; --k-panel:#16345A; --k-ink:#F3F6FA; --k-muted:#9DB2CC; --k-line:#2C4E7C; --led:#FFC933;
+  box-sizing:border-box;
+  padding-top:env(safe-area-inset-top,0px);
+  padding-bottom:env(safe-area-inset-bottom,0px);
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:#0A1626; --panel:#101F35; --ink:#E8EEF6; --muted:#8FA3BC; --line:#22385A;
+    --ok:#3CC57C; --bad:#F2706B; --warn:#F0B34A;
+    --cell-bg:#1B3050; --cell-ink:#A9BBD3; --cell-taken:#2E4C78; --cell-line:#2A426A;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#0A1626; --panel:#101F35; --ink:#E8EEF6; --muted:#8FA3BC; --line:#22385A;
+  --ok:#3CC57C; --bad:#F2706B; --warn:#F0B34A;
+  --cell-bg:#1B3050; --cell-ink:#A9BBD3; --cell-taken:#2E4C78; --cell-line:#2A426A;
+}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+*{box-sizing:border-box}
+html,body{margin:0}
+body{background:var(--bg);color:var(--ink);font-family:"Archivo","Hind",system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;font-size:16px;line-height:1.45}
+:lang(hi), [lang="hi"] body{font-family:"Hind","Archivo",system-ui,sans-serif}
+button,input,select{font:inherit;color:inherit}
+:focus-visible{outline:3px solid var(--accent);outline-offset:2px}
+
+/* ---- header ---- */
+.top{background:#0E2440;color:#F3F6FA;border-bottom:5px solid var(--accent)}
+.top-in{max-width:1180px;margin:0 auto;padding:14px 18px;display:flex;flex-wrap:wrap;gap:12px 20px;align-items:center;justify-content:space-between}
+.brand{display:flex;align-items:baseline;gap:12px;flex-wrap:wrap}
+.brand h1{margin:0;font-size:26px;font-weight:800;letter-spacing:-.01em}
+.brand span{color:#9DB2CC;font-size:14px}
+.ctrl{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.seg{display:inline-flex;border:1px solid #2C4E7C;border-radius:8px;overflow:hidden}
+.seg button{background:transparent;border:0;padding:8px 14px;cursor:pointer;color:#C9D6E6;font-weight:600}
+.seg button[aria-pressed="true"],.seg button[aria-selected="true"]{background:var(--accent);color:#1A1400}
+.tgl{background:transparent;border:1px solid #2C4E7C;border-radius:8px;padding:8px 12px;cursor:pointer;color:#C9D6E6;font-weight:600}
+.tgl[aria-pressed="true"]{background:#1E8E4E;border-color:#1E8E4E;color:#fff}
+
+main{max-width:1180px;margin:0 auto;padding:18px}
+.note{color:var(--muted);font-size:14px;margin:0 0 16px}
+.view[hidden]{display:none}
+
+/* ---- kiosk ---- */
+.kgrid{display:grid;grid-template-columns:minmax(0,5fr) minmax(0,7fr);gap:18px;align-items:start}
+@media (max-width:920px){.kgrid{grid-template-columns:1fr}}
+.kiosk{--cell-bg:#1E3B63;--cell-ink:#B9CBE2;--cell-taken:#1E3B63;--cell-line:#34588A;
+  background:var(--k-bg);color:var(--k-ink);border-radius:18px;padding:16px;border:2px solid var(--k-line)}
+.kiosk h2{margin:0 0 4px;font-size:24px;font-weight:700}
+.kiosk .help{margin:0 0 12px;color:var(--k-muted);font-size:15px}
+.khead{display:flex;justify-content:space-between;gap:10px;align-items:center;margin-bottom:12px;flex-wrap:wrap}
+.pill{background:var(--k-panel);border:1px solid var(--k-line);border-radius:999px;padding:5px 12px;font-size:13px;color:var(--k-muted)}
+.pill select{background:transparent;border:0;font-weight:700;color:var(--k-ink);cursor:pointer}
+.pill select option{color:#000}
+.cam{position:relative;background:#06121F;border:1px solid var(--k-line);border-radius:12px;aspect-ratio:4/3;overflow:hidden;display:grid;place-items:center}
+.cam video{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
+.cam .frame{position:absolute;inset:18% 22%;border:3px solid var(--led);border-radius:14px;opacity:.9;pointer-events:none}
+.cam .cammsg{position:relative;padding:14px;text-align:center;color:var(--k-muted);font-size:14px;max-width:32ch}
+.row{display:flex;gap:8px;margin-top:10px;flex-wrap:wrap}
+.btn{background:var(--k-panel);border:1px solid var(--k-line);color:var(--k-ink);border-radius:10px;padding:11px 16px;font-weight:700;cursor:pointer}
+.btn.primary{background:var(--accent);border-color:var(--accent);color:#1A1400}
+.btn:active{transform:translateY(1px)}
+.pnr{flex:1;min-width:150px;background:#06121F;border:1px solid var(--k-line);border-radius:10px;padding:11px 14px;color:var(--k-ink);font-size:18px;letter-spacing:.06em}
+.pnr::placeholder{letter-spacing:0;color:#6F87A6}
+
+.result{background:var(--panel);border:1px solid var(--line);border-radius:18px;overflow:hidden;min-height:420px}
+.banner{padding:16px 20px;font-size:26px;font-weight:800;display:flex;align-items:center;gap:12px}
+.banner small{font-size:15px;font-weight:600;opacity:.92;display:block}
+.b-ok{background:var(--ok);color:#fff}
+.b-bad{background:var(--bad);color:#fff}
+.b-warn{background:var(--accent);color:#1A1400}
+.b-idle{background:var(--k-panel);color:var(--k-ink)}
+.rbody{padding:18px 20px}
+.who{display:flex;flex-wrap:wrap;gap:6px 18px;align-items:baseline;justify-content:space-between}
+.who h3{margin:0;font-size:22px}
+.who .route{color:var(--muted);font-size:15px}
+.seatbig{margin:12px 0 4px;display:flex;flex-wrap:wrap;gap:8px 22px;align-items:center}
+.seatbig .num{font-size:56px;font-weight:800;line-height:1;letter-spacing:-.02em}
+.seatbig .num small{font-size:16px;font-weight:600;color:var(--muted);letter-spacing:0;margin-right:6px}
+.seatbig .desc{font-size:18px;font-weight:600}
+.seatbig .desc span{display:block;font-weight:400;color:var(--muted);font-size:15px}
+.msg{font-size:18px;margin:4px 0 14px}
+.legend{display:flex;flex-wrap:wrap;gap:6px 14px;font-size:13px;color:var(--muted);margin:10px 0 0}
+.legend i{display:inline-block;width:12px;height:12px;border-radius:3px;vertical-align:-1px;margin-right:5px}
+
+/* coach strip */
+.strip{display:flex;align-items:stretch;gap:6px;margin:6px 0 16px;flex-wrap:wrap}
+.car{border:2px solid var(--line);border-radius:8px;padding:8px 14px;font-weight:800;min-width:64px;text-align:center;position:relative;background:var(--cell-bg);color:var(--cell-ink)}
+.car small{display:block;font-size:11px;font-weight:600;color:var(--muted)}
+.car.here{border-color:var(--ink)}
+.car.target{background:var(--led);border-color:var(--led);color:#1A1400}
+.car.target small{color:#1A1400}
+.eng{align-self:center;color:var(--muted);font-size:13px;margin-left:4px}
+
+/* seat map */
+.map{display:grid;grid-template-columns:repeat(auto-fit,minmax(96px,1fr));gap:10px}
+.bay{border:1px solid var(--cell-line);border-radius:8px;padding:6px 6px 7px;background:transparent}
+.bay-n{font-size:11px;color:var(--muted);margin-bottom:4px;font-weight:600}
+.bay.bay-on{border-color:var(--led);box-shadow:0 0 0 1px var(--led)}
+.bay-g{display:grid;grid-template-columns:1fr 1fr 8px 1fr;gap:3px}
+.c{display:grid;place-items:center;font-style:normal;font-size:10px;font-weight:700;height:22px;border-radius:4px;background:var(--cell-bg);color:var(--cell-ink)}
+.c.st-pending{background:var(--cell-taken);box-shadow:inset 0 0 0 1.5px var(--cell-line)}
+.c.st-ok{background:var(--ok);color:#fff}
+.c.st-issue{background:var(--bad);color:#fff}
+.c.lit{background:var(--led);color:#1A1400;box-shadow:0 0 0 2px var(--led),0 0 16px 5px rgba(255,201,51,.8);position:relative;z-index:1;animation:led 1.1s ease-in-out infinite alternate}
+@keyframes led{from{box-shadow:0 0 0 2px var(--led),0 0 8px 2px rgba(255,201,51,.5)}to{box-shadow:0 0 0 2px var(--led),0 0 20px 7px rgba(255,201,51,.9)}}
+.door{font-size:12px;color:var(--muted);margin:0 0 6px}
+
+/* sample tickets */
+h2.sec{font-size:19px;margin:26px 0 4px}
+.samples{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:12px;margin-top:12px}
+.sm{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:12px;display:flex;gap:12px;align-items:center}
+.sm img{width:72px;height:72px;border-radius:6px;background:#fff;image-rendering:pixelated;flex:none}
+.sm b{display:block;font-size:14px}
+.sm span{display:block;font-size:13px;color:var(--muted);margin-bottom:6px}
+.sm button{background:var(--accent);color:#1A1400;border:0;border-radius:8px;padding:6px 12px;font-weight:700;cursor:pointer}
+
+/* ---- TTE ---- */
+.sum{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px;margin-bottom:16px}
+.cc{background:var(--panel);border:2px solid var(--line);border-radius:14px;padding:14px;text-align:left;cursor:pointer;width:100%}
+.cc[aria-pressed="true"]{border-color:var(--accent);box-shadow:0 0 0 2px var(--accent)}
+.cc .n{font-size:24px;font-weight:800}
+.cc .s{color:var(--muted);font-size:14px}
+.bar{height:8px;background:var(--cell-bg);border-radius:6px;margin:10px 0 6px;overflow:hidden}
+.bar>div{height:100%;background:var(--ok);width:0;transition:width .3s}
+.tgrid{display:grid;grid-template-columns:minmax(0,7fr) minmax(0,5fr);gap:16px;align-items:start}
+@media (max-width:920px){.tgrid{grid-template-columns:1fr}}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:16px}
+.card h3{margin:0 0 10px;font-size:17px}
+.tools{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:16px}
+.tb{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:9px 14px;font-weight:700;cursor:pointer}
+.tb.on{background:var(--ok);border-color:var(--ok);color:#fff}
+.tscroll{overflow-x:auto;max-width:100%}
+table{border-collapse:collapse;width:100%;font-size:14px;min-width:460px}
+th,td{text-align:left;padding:7px 8px;border-bottom:1px solid var(--line);white-space:nowrap}
+th{color:var(--muted);font-weight:600;font-size:13px}
+.chip{display:inline-block;border-radius:999px;padding:2px 10px;font-size:12px;font-weight:700}
+.ch-ok{background:var(--ok);color:#fff}
+.ch-bad{background:var(--bad);color:#fff}
+.ch-warn{background:var(--accent);color:#1A1400}
+.ch-mute{background:var(--cell-bg);color:var(--cell-ink)}
+.log{list-style:none;margin:0;padding:0;max-height:520px;overflow:auto}
+.log li{display:flex;gap:10px;align-items:center;padding:8px 0;border-bottom:1px solid var(--line);font-size:14px}
+.log time{color:var(--muted);font-size:12px;min-width:58px}
+.log .who2{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis}
+.empty{color:var(--muted);font-size:14px;padding:10px 0}
+@media (prefers-reduced-motion: reduce){.c.lit{animation:none}.bar>div{transition:none}}
+</style>
+</head>
+<body>
+<header class="top">
+  <div class="top-in">
+    <div class="brand">
+      <h1>CoachCheck</h1>
+      <span data-i18n="tagline">Self-check kiosk for reserved coaches</span>
+    </div>
+    <div class="ctrl">
+      <div class="seg" role="tablist" aria-label="View">
+        <button role="tab" id="tabKiosk" aria-selected="true" data-i18n="tabKiosk">Kiosk in coach</button>
+        <button role="tab" id="tabTte" aria-selected="false" data-i18n="tabTte">TTE dashboard</button>
+      </div>
+      <div class="seg" aria-label="Language">
+        <button id="langEn" aria-pressed="true">English</button>
+        <button id="langHi" aria-pressed="false">हिन्दी</button>
+      </div>
+      <button class="tgl" id="voiceBtn" aria-pressed="false" data-i18n="voice">Voice</button>
+    </div>
+  </div>
+</header>
+
+<main>
+  <p class="note" data-i18n="proto">Prototype with sample tickets for train 12345 Demo Express. It does not use any real railway data.</p>
+
+  <!-- KIOSK VIEW -->
+  <section class="view" id="viewKiosk">
+    <div class="kgrid">
+      <div class="kiosk">
+        <div class="khead">
+          <h2 data-i18n="scanTitle">Scan your ticket</h2>
+          <label class="pill"><span data-i18n="kioskIn">This kiosk is in coach</span>
+            <select id="kioskCoach" aria-label="Coach of this kiosk"></select></label>
+        </div>
+        <p class="help" data-i18n="scanHelp">Hold the ticket QR in front of the camera, or type your 10-digit PNR.</p>
+        <div class="cam">
+          <video id="video" playsinline muted hidden></video>
+          <div class="frame" id="frame" hidden></div>
+          <div class="cammsg" id="camMsg" data-i18n="camIdle">The camera is optional. You can also type a PNR or use the sample tickets below.</div>
+        </div>
+        <div class="row">
+          <button class="btn" id="camBtn" data-i18n="startCam">Start camera</button>
+        </div>
+        <div class="row">
+          <input class="pnr" id="pnr" inputmode="numeric" maxlength="14" autocomplete="off" data-i18n-ph="pnrPh" placeholder="PNR number">
+          <button class="btn primary" id="checkBtn" data-i18n="check">Check ticket</button>
+        </div>
+      </div>
+      <div class="result" id="result" aria-live="polite"></div>
+    </div>
+
+    <h2 class="sec" data-i18n="samplesTitle">Sample tickets to try</h2>
+    <p class="note" data-i18n="samplesHelp">Point the kiosk camera at a QR (on another screen), or press Scan to simulate it.</p>
+    <div class="samples" id="samples"></div>
+  </section>
+
+  <!-- TTE VIEW -->
+  <section class="view" id="viewTte" hidden>
+    <div class="tools">
+      <button class="tb" id="simBtn" data-i18n="simStart">Simulate boarding</button>
+      <button class="tb" id="resetBtn" data-i18n="reset">Reset demo</button>
+    </div>
+    <div class="sum" id="sum"></div>
+    <div class="tgrid">
+      <div>
+        <div class="card">
+          <h3 id="mapTitle"></h3>
+          <p class="door" data-i18n="doorNote">Bay 1 is next to the coach door.</p>
+          <div id="tteMap"></div>
+          <div class="legend">
+            <span><i style="background:var(--ok)"></i><span data-i18n="lgOk">Verified</span></span>
+            <span><i style="background:var(--cell-taken);box-shadow:inset 0 0 0 1.5px var(--cell-line)"></i><span data-i18n="lgPend">Booked, not yet verified</span></span>
+            <span><i style="background:var(--bad)"></i><span data-i18n="lgIssue">Scanned again</span></span>
+            <span><i style="background:var(--cell-bg)"></i><span data-i18n="lgFree">No booking</span></span>
+          </div>
+        </div>
+        <div class="card" style="margin-top:16px">
+          <h3 data-i18n="pax">Passengers in this coach</h3>
+          <div class="tscroll" id="tteTable"></div>
+        </div>
+      </div>
+      <div class="card">
+        <h3 data-i18n="liveLog">Live scan log</h3>
+        <ul class="log" id="log"></ul>
+      </div>
+    </div>
+  </section>
+</main>
+
+<canvas id="grab" hidden></canvas>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jsQR/1.4.0/jsQR.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcode-generator/1.4.4/qrcode.min.js"></script>
+<script>
+"use strict";
+/* ================= DATA ================= */
+const TRAIN = { no: "12345", name: "Demo Express" };
+const COACHES = ["S4", "S5", "S6"];               // index order: S6 is closest to the engine
+const BERTHS = ["LB","MB","UB","LB","MB","UB","SL","SU"];
+const BERTH_NAME = {
+  LB:{en:"Lower berth",hi:"नीचे की बर्थ"}, MB:{en:"Middle berth",hi:"बीच की बर्थ"},
+  UB:{en:"Upper berth",hi:"ऊपर की बर्थ"}, SL:{en:"Side lower berth",hi:"साइड लोअर बर्थ"},
+  SU:{en:"Side upper berth",hi:"साइड अपर बर्थ"}
+};
+// pnr, name, age, coach, seat, from, to, status, date
+const RAW = [
+  ["4012345671","Aarav Sharma",24,"S5",17,"LDH","NDLS","CNF"],
+  ["4012345672","Simran Kaur",22,"S5",18,"LDH","NDLS","CNF"],
+  ["4012345673","Harpreet Singh",41,"S5",7,"JUC","NDLS","CNF"],
+  ["4012345674","Meera Nair",35,"S5",8,"LDH","UMB","CNF"],
+  ["4012345675","Rohan Verma",29,"S5",33,"ASR","NDLS","CNF"],
+  ["4012345676","Anjali Gupta",52,"S5",34,"ASR","NDLS","CNF"],
+  ["4012345677","Kabir Malhotra",19,"S5",35,"LDH","NDLS","CNF"],
+  ["4012345678","Priya Chopra",27,"S5",50,"JUC","UMB","CNF"],
+  ["4012345679","Gurdeep Bajwa",63,"S5",51,"LDH","NDLS","CNF"],
+  ["4012345680","Neha Arora",31,"S5",64,"LDH","NDLS","CNF"],
+  ["4012345681","Vikram Rathore",38,"S4",3,"LDH","NDLS","CNF"],
+  ["4012345682","Ishita Jain",21,"S4",4,"LDH","NDLS","CNF"],
+  ["4012345683","Manpreet Gill",45,"S4",22,"JUC","NDLS","CNF"],
+  ["4012345684","Sahil Bansal",26,"S4",39,"ASR","UMB","CNF"],
+  ["4012345685","Pooja Mehta",33,"S4",40,"ASR","UMB","CNF"],
+  ["4012345686","Deepak Yadav",58,"S4",71,"LDH","NDLS","CNF"],
+  ["4012345687","Tanvi Saini",23,"S6",1,"LDH","NDLS","CNF"],
+  ["4012345688","Arjun Kapoor",30,"S6",2,"LDH","NDLS","CNF"],
+  ["4012345689","Rupinder Dhillon",47,"S6",26,"JUC","NDLS","CNF"],
+  ["4012345690","Kavya Iyer",25,"S6",45,"ASR","NDLS","CNF"],
+  ["4012345691","Amit Tiwari",36,"S6",58,"LDH","UMB","CNF"],
+  ["4012345692","Jasleen Brar",20,"S6",72,"LDH","NDLS","CNF"],
+  ["4012345693","Nitin Solanki",34,"-",0,"LDH","NDLS","WL"],
+  ["4012345694","Farhan Ali",28,"S5",21,"LDH","NDLS","CAN"],
+  ["4012345695","Sonia Kumari",40,"S5",40,"LDH","NDLS","CNF","old"]
+];
+const SAMPLES = [
+  { pnr:"4012345671", en:"Valid ticket", hi:"सही टिकट", d:"Coach S5, lower berth" },
+  { pnr:"4012345674", en:"Side berth", hi:"साइड बर्थ", d:"Coach S5, seat 8" },
+  { pnr:"4012345687", en:"Wrong coach", hi:"गलत कोच", d:"Ticket is for S6" },
+  { pnr:"4012345693", en:"Waitlisted", hi:"वेटिंग टिकट", d:"No confirmed seat" },
+  { pnr:"4012345694", en:"Cancelled", hi:"रद्द टिकट", d:"Booking cancelled" },
+  { pnr:"4012345695", en:"Old date", hi:"पुरानी तारीख", d:"Another day's ticket" },
+  { pnr:"9999999999", en:"Fake PNR", hi:"नकली PNR", d:"Not in the system" }
+];
+
+/* ================= TEXT ================= */
+const S = {
+ en:{
+  tagline:"Self-check kiosk for reserved coaches", tabKiosk:"Kiosk in coach", tabTte:"TTE dashboard", voice:"Voice",
+  proto:"Prototype with sample tickets for train 12345 Demo Express. It does not use any real railway data.",
+  scanTitle:"Scan your ticket", kioskIn:"This kiosk is in coach",
+  scanHelp:"Hold the ticket QR in front of the camera, or type your 10-digit PNR.",
+  camIdle:"The camera is optional. You can also type a PNR or use the sample tickets below.",
+  camDenied:"The camera could not start here. Type your PNR or use the sample tickets below.",
+  camNoLib:"The QR scanner did not load. Type your PNR or use the sample tickets below.",
+  startCam:"Start camera", stopCam:"Stop camera", pnrPh:"PNR number", check:"Check ticket",
+  samplesTitle:"Sample tickets to try", samplesHelp:"Point the kiosk camera at a QR (on another screen), or press Scan to simulate it.",
+  scan:"Scan",
+  idle:"Waiting for the next passenger", idleSub:"Scan a ticket to see your seat.",
+  ok:"Ticket verified", okSub:"Go to your seat. The seat light is on.",
+  wrongCoach:"Wrong coach", wrongCoachMsg:"Your coach is {c}. It is {n} coach(es) {dir} of this one.",
+  ahead:"ahead", behind:"behind",
+  dup:"Already verified", dupMsg:"This ticket was verified at {time}. If you did not scan it, please tell the TTE.",
+  wl:"Ticket not confirmed", wlMsg:"Your ticket is waitlisted, so you have no seat in this coach. Please meet the TTE.",
+  can:"Ticket cancelled", canMsg:"This booking was cancelled. Please meet the TTE.",
+  date:"Not valid today", dateMsg:"This ticket is for another date or train. Please meet the TTE.",
+  nf:"Ticket not found", nfMsg:"No booking matches this PNR. Check the number or meet the TTE.",
+  seat:"Seat", bay:"Bay {n}, counting from the coach door", sideNote:"Side berth: across the aisle, along the window.",
+  next:"Next passenger", here:"You are here", engine:"Engine",
+  doorNote:"Bay 1 is next to the coach door.",
+  // TTE
+  simStart:"Simulate boarding", simStop:"Stop simulation", reset:"Reset demo",
+  coachN:"Coach {c}", verifiedOf:"{a} of {b} verified", yet:"{n} yet to verify",
+  pax:"Passengers in this coach", liveLog:"Live scan log", logEmpty:"No scans yet. Scan a ticket on the kiosk or start the simulation.",
+  lgOk:"Verified", lgPend:"Booked, not yet verified", lgIssue:"Scanned again", lgFree:"No booking",
+  thSeat:"Seat", thName:"Passenger", thRoute:"Route", thStatus:"Status",
+  stVer:"Verified {time}", stPend:"Not yet", stDup:"Scanned again",
+  wholeTrain:"Whole train: {a} of {b} verified",
+  chOk:"Verified", chWrong:"Wrong coach", chDup:"Rescanned", chWl:"Waitlisted", chCan:"Cancelled", chDate:"Wrong date", chNf:"Not found"
+ },
+ hi:{
+  tagline:"आरक्षित कोच के लिए सेल्फ-चेक किओस्क", tabKiosk:"कोच में किओस्क", tabTte:"TTE डैशबोर्ड", voice:"आवाज़",
+  proto:"यह ट्रेन 12345 डेमो एक्सप्रेस के नमूना टिकटों वाला प्रोटोटाइप है। इसमें रेलवे का असली डेटा नहीं है।",
+  scanTitle:"अपना टिकट स्कैन करें", kioskIn:"यह किओस्क कोच में है",
+  scanHelp:"टिकट का QR कैमरे के सामने रखें, या 10 अंकों का PNR लिखें।",
+  camIdle:"कैमरा वैकल्पिक है। आप PNR लिख सकते हैं या नीचे के नमूना टिकट आज़मा सकते हैं।",
+  camDenied:"यहाँ कैमरा शुरू नहीं हो सका। PNR लिखें या नीचे के नमूना टिकट आज़माएँ।",
+  camNoLib:"QR स्कैनर लोड नहीं हुआ। PNR लिखें या नीचे के नमूना टिकट आज़माएँ।",
+  startCam:"कैमरा चालू करें", stopCam:"कैमरा बंद करें", pnrPh:"PNR नंबर", check:"टिकट जांचें",
+  samplesTitle:"आज़माने के लिए नमूना टिकट", samplesHelp:"किओस्क कैमरे को दूसरी स्क्रीन के QR पर रखें, या स्कैन दबाकर नकल करें।",
+  scan:"स्कैन",
+  idle:"अगले यात्री की प्रतीक्षा", idleSub:"अपनी सीट देखने के लिए टिकट स्कैन करें।",
+  ok:"टिकट सही है", okSub:"अपनी सीट पर जाएँ। सीट की लाइट जल रही है।",
+  wrongCoach:"गलत कोच", wrongCoachMsg:"आपका कोच {c} है। यह इस कोच से {n} कोच {dir} है।",
+  ahead:"आगे", behind:"पीछे",
+  dup:"पहले ही जांचा जा चुका है", dupMsg:"यह टिकट {time} बजे जांचा गया था। अगर आपने स्कैन नहीं किया, तो TTE को बताएँ।",
+  wl:"टिकट कन्फर्म नहीं है", wlMsg:"आपका टिकट वेटिंग में है, इसलिए इस कोच में सीट नहीं है। कृपया TTE से मिलें।",
+  can:"टिकट रद्द है", canMsg:"यह बुकिंग रद्द हो चुकी है। कृपया TTE से मिलें।",
+  date:"आज मान्य नहीं", dateMsg:"यह टिकट किसी और तारीख या ट्रेन का है। कृपया TTE से मिलें।",
+  nf:"टिकट नहीं मिला", nfMsg:"इस PNR की कोई बुकिंग नहीं मिली। नंबर जांचें या TTE से मिलें।",
+  seat:"सीट", bay:"बे {n}, कोच के दरवाज़े से गिनकर", sideNote:"साइड बर्थ: गलियारे के दूसरी तरफ, खिड़की के पास।",
+  next:"अगला यात्री", here:"आप यहाँ हैं", engine:"इंजन",
+  doorNote:"बे 1 कोच के दरवाज़े के पास है।",
+  simStart:"बोर्डिंग की नकल चलाएँ", simStop:"नकल रोकें", reset:"डेमो रीसेट करें",
+  coachN:"कोच {c}", verifiedOf:"{b} में से {a} जांचे गए", yet:"{n} बाकी",
+  pax:"इस कोच के यात्री", liveLog:"लाइव स्कैन लॉग", logEmpty:"अभी कोई स्कैन नहीं। किओस्क पर टिकट स्कैन करें या नकल चालू करें।",
+  lgOk:"जांचा गया", lgPend:"बुक है, अभी जांचा नहीं", lgIssue:"दोबारा स्कैन", lgFree:"बुकिंग नहीं",
+  thSeat:"सीट", thName:"यात्री", thRoute:"मार्ग", thStatus:"स्थिति",
+  stVer:"{time} पर जांचा", stPend:"अभी नहीं", stDup:"दोबारा स्कैन",
+  wholeTrain:"पूरी ट्रेन: {b} में से {a} जांचे गए",
+  chOk:"जांचा गया", chWrong:"गलत कोच", chDup:"दोबारा स्कैन", chWl:"वेटिंग", chCan:"रद्द", chDate:"गलत तारीख", chNf:"नहीं मिला"
+ }
+};
+
+/* ================= STATE ================= */
+const state = { lang:"en", tab:"kiosk", voice:false, kioskCoach:"S5", selCoach:"S5", lastResult:null, sim:null };
+let tickets = [], scans = [], idleTimer = null;
+
+function seed(){
+  tickets = RAW.map(r => ({
+    pnr:r[0], name:r[1], age:r[2], coach:r[3], seat:r[4], from:r[5], to:r[6], status:r[7],
+    date:r[8] || "today", verified:false, at:null, dup:false
+  }));
+  scans = [];
+}
+seed();
+
+const $ = id => document.getElementById(id);
+const esc = s => String(s).replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const tr = (k, p = {}) => {
+  let s = (S[state.lang][k] !== undefined ? S[state.lang][k] : S.en[k]) || k;
+  for (const [a, b] of Object.entries(p)) s = s.split("{" + a + "}").join(b);
+  return s;
+};
+const fmt = d => d.toLocaleTimeString("en-IN", { hour:"2-digit", minute:"2-digit", second:"2-digit", hour12:false });
+const bayOf = seat => Math.floor((seat - 1) / 8) + 1;
+const berthOf = seat => BERTHS[(seat - 1) % 8];
+
+/* ================= CORE: verify a ticket ================= */
+function verify(input, kioskCoach){
+  const digits = String(input).replace(/\D/g, "");
+  const t = tickets.find(x => x.pnr === digits);
+  const now = new Date();
+  let code;
+  if (!t) code = "NOT_FOUND";
+  else if (t.status === "CAN") code = "CANCELLED";
+  else if (t.date !== "today") code = "WRONG_DATE";
+  else if (t.status === "WL") code = "WAITLIST";
+  else if (t.coach !== kioskCoach) code = "WRONG_COACH";
+  else if (t.verified) { code = "DUPLICATE"; t.dup = true; }
+  else { code = "OK"; t.verified = true; t.at = now; }
+  scans.unshift({ time: now, coach: kioskCoach, pnr: digits || "?", code, name: t ? t.name : "" });
+  return { code, t, coach: kioskCoach, time: now };
+}
+
+/* ================= SEAT MAP ================= */
+function mapHTML(stateOf, lit){
+  let h = '<div class="map">';
+  for (let b = 0; b < 9; b++){
+    const base = b * 8;
+    const on = lit && bayOf(lit) === b + 1;
+    const cell = s => {
+      const cls = (lit === s ? "lit " : "") + (stateOf ? (stateOf(s) || "") : "");
+      return `<i class="c ${cls}" title="${s} · ${BERTH_NAME[berthOf(s)].en}">${s}</i>`;
+    };
+    // rows top to bottom: upper, middle, lower. Columns: left stack, right stack, aisle, side berths
+    h += `<div class="bay${on ? " bay-on" : ""}"><div class="bay-n">Bay ${b + 1}</div><div class="bay-g">
+      ${cell(base+3)}${cell(base+6)}<span></span>${cell(base+8)}
+      ${cell(base+2)}${cell(base+5)}<span></span><span></span>
+      ${cell(base+1)}${cell(base+4)}<span></span>${cell(base+7)}
+    </div></div>`;
+  }
+  return h + "</div>";
+}
+
+/* ================= KIOSK RENDER ================= */
+function stripHTML(here, target){
+  return '<div class="strip">' + COACHES.map(c =>
+    `<span class="car${c === target ? " target" : ""}${c === here ? " here" : ""}">${c}${c === here ? `<small>${tr("here")}</small>` : ""}</span>`
+  ).join("") + `<span class="eng">${tr("engine")} ▸</span></div>`;
+}
+
+function renderResult(){
+  const r = state.lastResult, el = $("result");
+  if (!r){
+    el.innerHTML = `<div class="banner b-idle"><div>${tr("idle")}<small>${tr("idleSub")}</small></div></div>
+      <div class="rbody"><p class="door">${tr("doorNote")}</p>${mapHTML(null, null)}</div>`;
+    return;
+  }
+  const { code, t } = r;
+  const berth = t && t.seat ? BERTH_NAME[berthOf(t.seat)][state.lang] : "";
+  const journey = t ? `${esc(t.from)} → ${esc(t.to)}` : "";
+  const who = t ? `<div class="who"><h3>${esc(t.name)}, ${t.age}</h3><span class="route">${journey} · PNR ${esc(t.pnr)}</span></div>` : "";
+  const seatBlock = t && t.seat ? `
+    <div class="seatbig">
+      <div class="num"><small>${tr("seat")}</small>${t.seat}</div>
+      <div class="desc">${berth}<span>${tr("bay", { n: bayOf(t.seat) })}</span>${berthOf(t.seat)[0] === "S" ? `<span>${tr("sideNote")}</span>` : ""}</div>
+    </div>` : "";
+  const next = `<div class="row"><button class="btn primary" id="nextBtn" style="background:var(--accent);color:#1A1400;border-color:var(--accent)">${tr("next")}</button></div>`;
+  let html = "";
+  if (code === "OK"){
+    html = `<div class="banner b-ok"><div>✓ ${tr("ok")}<small>${tr("okSub")}</small></div></div>
+      <div class="rbody">${who}${seatBlock}${mapHTML(null, t.seat)}${next}</div>`;
+  } else if (code === "DUPLICATE"){
+    html = `<div class="banner b-warn"><div>! ${tr("dup")}</div></div>
+      <div class="rbody">${who}<p class="msg">${tr("dupMsg", { time: fmt(t.at) })}</p>${seatBlock}${mapHTML(null, t.seat)}${next}</div>`;
+  } else if (code === "WRONG_COACH"){
+    const diff = COACHES.indexOf(t.coach) - COACHES.indexOf(r.coach);
+    html = `<div class="banner b-warn"><div>→ ${tr("wrongCoach")}</div></div>
+      <div class="rbody">${who}
+      <p class="msg">${tr("wrongCoachMsg", { c: t.coach, n: Math.abs(diff), dir: diff > 0 ? tr("ahead") : tr("behind") })}</p>
+      ${stripHTML(r.coach, t.coach)}${next}</div>`;
+  } else {
+    const key = { WAITLIST:"wl", CANCELLED:"can", WRONG_DATE:"date", NOT_FOUND:"nf" }[code];
+    html = `<div class="banner b-bad"><div>✕ ${tr(key)}</div></div>
+      <div class="rbody">${who}<p class="msg">${tr(key + "Msg")}</p>${next}</div>`;
+  }
+  el.innerHTML = html;
+  const nb = $("nextBtn"); if (nb) nb.onclick = clearResult;
+}
+
+function clearResult(){
+  clearTimeout(idleTimer);
+  state.lastResult = null;
+  renderResult();
+}
+
+/* ================= SOUND + VOICE ================= */
+let ac = null;
+function tone(freqs){
+  try{
+    ac = ac || new (window.AudioContext || window.webkitAudioContext)();
+    const t0 = ac.currentTime;
+    freqs.forEach((f, i) => {
+      const o = ac.createOscillator(), g = ac.createGain();
+      o.frequency.value = f; g.gain.value = 0.08;
+      o.connect(g); g.connect(ac.destination);
+      o.start(t0 + i * 0.15); o.stop(t0 + i * 0.15 + 0.12);
+    });
+  }catch(e){}
+}
+function speak(text){
+  if (!state.voice || !("speechSynthesis" in window)) return;
+  try{
+    speechSynthesis.cancel();
+    const u = new SpeechSynthesisUtterance(text);
+    u.lang = state.lang === "hi" ? "hi-IN" : "en-IN";
+    speechSynthesis.speak(u);
+  }catch(e){}
+}
+function announce(r){
+  const t = r.t;
+  if (r.code === "OK") return `${tr("ok")}. ${tr("seat")} ${t.seat}, ${BERTH_NAME[berthOf(t.seat)][state.lang]}.`;
+  if (r.code === "WRONG_COACH") return `${tr("wrongCoach")}. ${tr("wrongCoachMsg", { c: t.coach, n: Math.abs(COACHES.indexOf(t.coach) - COACHES.indexOf(r.coach)), dir: COACHES.indexOf(t.coach) > COACHES.indexOf(r.coach) ? tr("ahead") : tr("behind") })}`;
+  const key = { DUPLICATE:"dup", WAITLIST:"wl", CANCELLED:"can", WRONG_DATE:"date", NOT_FOUND:"nf" }[r.code];
+  return tr(key);
+}
+
+/* ================= SCAN HANDLER ================= */
+function handleScan(payload){
+  const r = verify(payload, state.kioskCoach);
+  state.lastResult = r;
+  renderResult();
+  tone(r.code === "OK" ? [880, 1175] : r.code === "DUPLICATE" || r.code === "WRONG_COACH" ? [520, 520] : [260, 200]);
+  speak(announce(r));
+  clearTimeout(idleTimer);
+  idleTimer = setTimeout(clearResult, 20000);
+  if (state.tab === "tte") renderTte();
+}
+
+/* ================= CAMERA ================= */
+let stream = null, camOn = false, lastPayload = "", lastAt = 0;
+async function startCam(){
+  const msg = $("camMsg");
+  if (typeof jsQR === "undefined"){ msg.textContent = tr("camNoLib"); return; }
+  try{
+    stream = await navigator.mediaDevices.getUserMedia({ video:{ facingMode:"environment" } });
+    const v = $("video"); v.srcObject = stream; v.hidden = false; await v.play();
+    $("frame").hidden = false; msg.hidden = true; camOn = true;
+    $("camBtn").textContent = tr("stopCam");
+    tick();
+  }catch(e){
+    msg.hidden = false; msg.textContent = tr("camDenied");
+    stopCam(true);
+  }
+}
+function stopCam(keepMsg){
+  camOn = false;
+  if (stream){ stream.getTracks().forEach(t => t.stop()); stream = null; }
+  $("video").hidden = true; $("frame").hidden = true;
+  if (!keepMsg){ $("camMsg").hidden = false; $("camMsg").textContent = tr("camIdle"); }
+  $("camBtn").textContent = tr("startCam");
+}
+function tick(){
+  if (!camOn) return;
+  const v = $("video");
+  if (v.readyState >= 2 && v.videoWidth){
+    const cv = $("grab"), w = 480, h = Math.round(480 * v.videoHeight / v.videoWidth);
+    cv.width = w; cv.height = h;
+    const cx = cv.getContext("2d", { willReadFrequently:true });
+    cx.drawImage(v, 0, 0, w, h);
+    const img = cx.getImageData(0, 0, w, h);
+    const code = jsQR(img.data, w, h);
+    if (code && code.data && (code.data !== lastPayload || Date.now() - lastAt > 4000)){
+      lastPayload = code.data; lastAt = Date.now();
+      handleScan(code.data);
+    }
+  }
+  requestAnimationFrame(tick);
+}
+
+/* ================= SAMPLES ================= */
+function qrURL(text){
+  try{ const q = qrcode(0, "M"); q.addData(text); q.make(); return q.createDataURL(4, 2); }
+  catch(e){ return ""; }
+}
+function renderSamples(){
+  $("samples").innerHTML = SAMPLES.map((s, i) => `
+    <div class="sm">
+      <img alt="QR code for ${esc(s.en)}" src="${qrURL("CC|" + s.pnr)}">
+      <div><b>${state.lang === "hi" ? s.hi : s.en}</b><span>${s.d}<br>PNR ${s.pnr}</span>
+      <button data-i="${i}">${tr("scan")}</button></div>
+    </div>`).join("");
+  $("samples").querySelectorAll("button").forEach(b => b.onclick = () => handleScan("CC|" + SAMPLES[+b.dataset.i].pnr));
+}
+
+/* ================= TTE DASHBOARD ================= */
+const CODE_CHIP = {
+  OK:["chOk","ch-ok"], WRONG_COACH:["chWrong","ch-warn"], DUPLICATE:["chDup","ch-warn"],
+  WAITLIST:["chWl","ch-bad"], CANCELLED:["chCan","ch-bad"], WRONG_DATE:["chDate","ch-bad"], NOT_FOUND:["chNf","ch-bad"]
+};
+const seated = () => tickets.filter(t => t.status === "CNF" && t.date === "today" && t.seat);
+
+function renderTte(){
+  const all = seated();
+  // summary cards
+  let html = "";
+  COACHES.forEach(c => {
+    const mine = all.filter(t => t.coach === c), ver = mine.filter(t => t.verified).length;
+    html += `<button class="cc" data-c="${c}" aria-pressed="${c === state.selCoach}">
+      <div class="n">${tr("coachN", { c })}</div>
+      <div class="bar"><div style="width:${mine.length ? Math.round(ver / mine.length * 100) : 0}%"></div></div>
+      <div class="s">${tr("verifiedOf", { a: ver, b: mine.length })} · ${tr("yet", { n: mine.length - ver })}</div>
+    </button>`;
+  });
+  const totalV = all.filter(t => t.verified).length;
+  $("sum").innerHTML = html + `<div class="cc" style="cursor:default"><div class="n">${totalV}/${all.length}</div><div class="s">${tr("wholeTrain", { a: totalV, b: all.length })}</div></div>`;
+  $("sum").querySelectorAll("button.cc").forEach(b => b.onclick = () => { state.selCoach = b.dataset.c; renderTte(); });
+
+  // map
+  const mine = all.filter(t => t.coach === state.selCoach);
+  const bySeat = {}; mine.forEach(t => bySeat[t.seat] = t);
+  $("mapTitle").textContent = tr("coachN", { c: state.selCoach });
+  $("tteMap").innerHTML = mapHTML(s => {
+    const t = bySeat[s]; if (!t) return "";
+    return t.dup ? "st-issue" : t.verified ? "st-ok" : "st-pending";
+  }, null);
+
+  // table
+  const rows = mine.slice().sort((a, b) => a.seat - b.seat).map(t => {
+    const st = t.dup ? `<span class="chip ch-warn">${tr("stDup")}</span>`
+      : t.verified ? `<span class="chip ch-ok">${tr("stVer", { time: fmt(t.at) })}</span>`
+      : `<span class="chip ch-mute">${tr("stPend")}</span>`;
+    return `<tr><td>${t.seat} ${berthOf(t.seat)}</td><td>${esc(t.name)}, ${t.age}</td><td>${esc(t.from)} → ${esc(t.to)}</td><td>${st}</td></tr>`;
+  }).join("");
+  $("tteTable").innerHTML = `<table><thead><tr><th>${tr("thSeat")}</th><th>${tr("thName")}</th><th>${tr("thRoute")}</th><th>${tr("thStatus")}</th></tr></thead><tbody>${rows}</tbody></table>`;
+
+  // log
+  $("log").innerHTML = scans.length ? scans.slice(0, 40).map(s => {
+    const [k, cls] = CODE_CHIP[s.code];
+    return `<li><time>${fmt(s.time)}</time><span class="who2">${s.name ? esc(s.name) : "PNR " + esc(s.pnr)} <small style="color:var(--muted)">@ ${s.coach}</small></span><span class="chip ${cls}">${tr(k)}</span></li>`;
+  }).join("") : `<li class="empty">${tr("logEmpty")}</li>`;
+}
+
+/* simulated boarding */
+function simStep(){
+  const pending = seated().filter(t => !t.verified);
+  if (!pending.length){ toggleSim(false); return; }
+  const t = pending[Math.floor(Math.random() * pending.length)];
+  const roll = Math.random();
+  if (roll < 0.12){                       // walked into the wrong coach first
+    const other = COACHES.filter(c => c !== t.coach)[Math.floor(Math.random() * 2)];
+    verify("CC|" + t.pnr, other);
+  } else if (roll < 0.2){                 // someone without a valid booking
+    verify("CC|" + (Math.random() < .5 ? "9999999999" : "4012345693"), t.coach);
+  } else {
+    verify("CC|" + t.pnr, t.coach);
+  }
+  if (state.tab === "tte") renderTte();
+}
+function toggleSim(on){
+  if (on === undefined) on = !state.sim;
+  clearInterval(state.sim); state.sim = on ? setInterval(simStep, 900) : null;
+  $("simBtn").classList.toggle("on", !!on);
+  $("simBtn").textContent = on ? tr("simStop") : tr("simStart");
+}
+
+/* ================= UI WIRING ================= */
+function applyLang(){
+  document.documentElement.lang = state.lang;
+  document.querySelectorAll("[data-i18n]").forEach(e => {
+    if (e.id === "camBtn" || e.id === "camMsg" || e.id === "simBtn") return;
+    e.textContent = tr(e.dataset.i18n);
+  });
+  document.querySelectorAll("[data-i18n-ph]").forEach(e => e.placeholder = tr(e.dataset.i18nPh));
+  $("camBtn").textContent = camOn ? tr("stopCam") : tr("startCam");
+  if (!camOn && !$("camMsg").hidden && $("camMsg").dataset.custom !== "1") $("camMsg").textContent = tr("camIdle");
+  $("simBtn").textContent = state.sim ? tr("simStop") : tr("simStart");
+  $("langEn").setAttribute("aria-pressed", state.lang === "en");
+  $("langHi").setAttribute("aria-pressed", state.lang === "hi");
+  renderResult(); renderSamples(); if (state.tab === "tte") renderTte();
+}
+function setTab(t){
+  state.tab = t;
+  $("viewKiosk").hidden = t !== "kiosk"; $("viewTte").hidden = t !== "tte";
+  $("tabKiosk").setAttribute("aria-selected", t === "kiosk");
+  $("tabTte").setAttribute("aria-selected", t === "tte");
+  if (t === "tte") renderTte(); else if (camOn === false) {} 
+}
+
+COACHES.forEach(c => { const o = document.createElement("option"); o.value = c; o.textContent = c; if (c === state.kioskCoach) o.selected = true; $("kioskCoach").appendChild(o); });
+$("kioskCoach").onchange = e => { state.kioskCoach = e.target.value; clearResult(); };
+$("tabKiosk").onclick = () => setTab("kiosk");
+$("tabTte").onclick = () => setTab("tte");
+$("langEn").onclick = () => { state.lang = "en"; applyLang(); };
+$("langHi").onclick = () => { state.lang = "hi"; applyLang(); };
+$("voiceBtn").onclick = e => {
+  state.voice = !state.voice; e.currentTarget.setAttribute("aria-pressed", state.voice);
+  if (state.voice) speak(tr("scanTitle")); else if ("speechSynthesis" in window) speechSynthesis.cancel();
+};
+$("camBtn").onclick = () => camOn ? stopCam() : startCam();
+$("checkBtn").onclick = () => { const v = $("pnr").value.trim(); if (v){ handleScan(v); $("pnr").value = ""; } };
+$("pnr").onkeydown = e => { if (e.key === "Enter") $("checkBtn").click(); };
+$("simBtn").onclick = () => toggleSim();
+$("resetBtn").onclick = () => { toggleSim(false); seed(); state.lastResult = null; renderResult(); renderTte(); };
+
+applyLang();
+</script>
+</body>
+</html>
